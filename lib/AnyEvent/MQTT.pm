@@ -297,7 +297,7 @@ sub _confirm_subscription {
   if (!$self->{clean_session} && $qos && $self->{_qos_msg_cache}) {
     my $cache = $self->{_qos_msg_cache};
     my $ts = Net::MQTT::TopicStore->new($topic);
-    for my $i (grep { $ts->values($cache->[$_]->topic) } reverse(0..$#$cache)) {
+    for my $i (grep { defined $cache->[$_] && ref $cache->[$_] && $cache->[$_]->can('topic') && $ts->values($cache->[$_]->topic) } reverse(0..$#$cache)) {
       my $msg = delete $cache->[$i];
       print STDERR "Processing cached message for topic '", $msg->topic, "' with subscription to topic '$topic'\n" if DEBUG;
       $self->_process_publish($self->{handle}, $msg);
