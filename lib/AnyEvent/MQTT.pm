@@ -57,7 +57,7 @@ sub cleanup {
     my $cv = AnyEvent->condvar;
     my $handle = $self->{handle};
     weaken $handle;
-    $cv->cb(sub { $handle->destroy });
+    $cv->cb(sub { $handle->destroy if $handle });
     $self->_send(message_type => MQTT_DISCONNECT, cv => $cv);
   }
   delete $self->{handle};
@@ -65,6 +65,10 @@ sub cleanup {
   delete $self->{wait};
   delete $self->{_keep_alive_handle};
   delete $self->{_keep_alive_waiting};
+  
+  $self->{inflight} = {};
+  $self->{_sub_pending} = {};
+  $self->{_sub_pending_by_message_id} = {};
   $self->{write_queue} = [];
 }
 
@@ -151,6 +155,10 @@ sub _send_with_ack {
     }
     my $mid = $args->{message_id};
     my $send_cv = AnyEvent->condvar;
+    
+    my $weak_self = $self;
+    weaken $weak_self;
+
     $send_cv->cb(subname 'ack_cb_for_'.$mid => sub {
                    $self->{inflight}->{$mid} =
                      {
@@ -161,10 +169,11 @@ sub _send_with_ack {
                         AnyEvent->timer(after => $self->{keep_alive_timer},
                                         cb => subname 'ack_timeout_for_'.$mid =>
                                         sub {
-                          print ref $self, " timeout waiting for ",
+                          return unless $weak_self;
+                          print ref $weak_self, " timeout waiting for ",
                             message_type_string($expect), "\n" if DEBUG;
-                          delete $self->{inflight}->{$mid};
-                          $self->_send_with_ack($args, $cv, $expect, 1);
+                          delete $weak_self->{inflight}->{$mid};
+                          $weak_self->_send_with_ack($args, $cv, $expect, 1);
                         }),
                      };
                    });
