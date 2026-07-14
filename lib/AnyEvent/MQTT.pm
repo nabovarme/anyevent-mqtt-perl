@@ -217,7 +217,11 @@ sub _add_subscription {
     $rec->{cb}->{$sub} = $sub;
     $cv->send($rec->{qos});
     foreach my $msg (values %{$rec->{retained}}) {
-      $sub->($msg->topic, $msg->message, $msg);
+      if (defined $msg && ref $msg && $msg->can('topic')) {
+        $sub->($msg->topic, $msg->message, $msg);
+      } else {
+        warn "Skipping invalid retained message in _add_subscription to prevent crash\n";
+      }
     }
     return;
   }
