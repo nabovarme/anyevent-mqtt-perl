@@ -476,6 +476,14 @@ sub _reconnect {
 sub _handle_message {
   my $self = shift;
   my ($handle, $msg, $error) = @_;
+
+  # CRITICAL FIX: AnyEvent::MQTT can pass undefined variables 
+  # when empty or unacknowledged QoS 1 packets hit the socket during handshake.
+  if (!defined $msg) {
+    warn "AnyEvent::MQTT received an undefined or malformed packet. Skipping to prevent crash.\n";
+    return 1;
+  }
+
   return $self->_error(0, $error, 1) if ($error);
   $self->{message_log_callback}->('<', $msg) if ($self->{message_log_callback});
   $self->_call_callback('before_msg_callback' => $msg) or return;
